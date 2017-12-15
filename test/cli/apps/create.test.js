@@ -248,37 +248,6 @@ describe('eg apps create', () => {
     assert.equal(usage, 'must include --stdin or -u, --user');
   });
 
-  it('prints error on invalid JSON from stdin', done => {
-    const app = {};
-
-    env.hijack(namespace, generator => {
-      let output = null;
-
-      generator.once('run', () => {
-        generator.log = message => {
-          output = message;
-        };
-        generator.log.error = message => {
-          assert.equal(message, 'data should have required property \'name\'');
-        };
-        generator.log.ok = message => {
-          output = message;
-        };
-
-        generator.stdin = new PassThrough();
-        generator.stdin.write(JSON.stringify(app), 'utf8');
-        generator.stdin.end();
-      });
-
-      generator.once('end', () => {
-        assert.equal(output, null);
-        done();
-      });
-    });
-
-    env.argv = program.parse('apps create -u ' + user.username + ' --stdin');
-  });
-
   it('prints error on invalid user', done => {
     const app = {
       name: 'appy',
@@ -291,7 +260,7 @@ describe('eg apps create', () => {
           done(new Error(message));
         };
         generator.log.error = message => {
-          assert.equal(message, 'Failed to insert application: name is required');
+          assert.equal(message, 'The specified user does not exist');
         };
         generator.log.ok = message => {
           done(new Error(message));
