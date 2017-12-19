@@ -251,28 +251,9 @@ describe('Credential service tests', () => {
         .be.rejectedWith('one or more scopes don\'t exist');
     });
 
-    it('should use default property if not defined', () => {
-      const username2 = 'otherUser';
-      const cred = {
-        secret: 'password',
-        scopes: 'someOtherOne',
-        someProperty: 'propVal'
-      };
-
-      return credentialService
-        .insertCredential(username2, 'oauth2', cred)
-        .then((newCredential) => {
-          should.exist(newCredential);
-          newCredential.isActive.should.eql(true);
-          should.exist(newCredential.scopes);
-          newCredential.scopes.should.eql(['someOtherOne']);
-          newCredential.someProperty.should.eql('propVal');
-          should.not.exist(newCredential.secret);
-          newCredential.otherProperty.should.eql('someDefaultValue');
-        });
-    });
-
     it('should not create credential if a required property is not passed in', () => {
+      config.models.credentials.properties.oauth2.required.push('someProperty');
+
       const username3 = 'anotherUser';
       const cred = {
         secret: 'password',
