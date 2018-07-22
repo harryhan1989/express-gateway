@@ -1,4 +1,4 @@
-const assert = require('chai').assert;
+const should = require('should');
 const gateway = require('../../lib/gateway');
 const Config = require('../../lib/config/config');
 const testHelper = require('../common/routing.helper');
@@ -34,7 +34,6 @@ config.gatewayConfig = {
 };
 
 describe('gateway policy with plugins', () => {
-  let gatewaySrv;
   const helper = testHelper();
 
   before('fires up a new gateway instance', function () {
@@ -44,7 +43,7 @@ describe('gateway policy with plugins', () => {
           name: 'test-policy',
           policy: function (actionParams) {
             return (req, res, next) => {
-              assert(actionParams.p1, 42);
+              should(actionParams.p1).be.eql(42);
               res.json({ hello: 'ok', url: req.url, actionParams });
             };
           }
@@ -53,14 +52,11 @@ describe('gateway policy with plugins', () => {
       config
     }).then(srv => {
       helper.setupApp(srv.app);
-      gatewaySrv = srv.app;
       return srv;
     });
   });
 
-  after('cleanup', () => {
-    helper.cleanup();
-  });
+  after('cleanup', helper.cleanup);
 
   it('should allow first request for host', helper.validateSuccess({
     setup: {
@@ -71,20 +67,12 @@ describe('gateway policy with plugins', () => {
       url: '/'
     }
   }));
-
-  after('close gateway srv', () => {
-    gatewaySrv.close();
-  });
 });
 
 describe('gateway policy schema with plugins', () => {
-  let gatewaySrv;
   const helper = testHelper();
 
-  afterEach('cleanup', () => {
-    gatewaySrv.close();
-    helper.cleanup();
-  });
+  after('cleanup', helper.cleanup);
 
   it('should setup policy with valid schema', function () {
     return gateway({
@@ -101,7 +89,7 @@ describe('gateway policy schema with plugins', () => {
           },
           policy: function (actionParams) {
             return (req, res, next) => {
-              assert(actionParams.p1, 42);
+              should(actionParams.p1).be.eql(42);
               res.json({ hello: 'ok', url: req.url, actionParams });
             };
           }
@@ -110,8 +98,6 @@ describe('gateway policy schema with plugins', () => {
       config
     }).then(srv => {
       helper.setupApp(srv.app);
-      gatewaySrv = srv.app;
-      return srv;
     });
   });
 
@@ -125,7 +111,7 @@ describe('gateway policy schema with plugins', () => {
       ]
     }
     );
-    return assert.throws(() => gateway({
+    return should.throws(() => gateway({
       plugins: {
         policies: [{
           name: 'test-policy-2',
@@ -137,7 +123,7 @@ describe('gateway policy schema with plugins', () => {
             required: ['p2']
           },
           policy: function () {
-            assert.fail();
+            should.fail();
           }
         }]
       },

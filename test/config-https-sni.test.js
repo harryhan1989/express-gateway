@@ -62,7 +62,7 @@ const testCases = [{
   expected: {
     serverError: 'cannot start TLS SNI - no cert configured',
     serverResult: null,
-    clientError: 'socket hang up',
+    clientError: 'ECONNRESET',
     clientResult: false
   }
 }];
@@ -72,7 +72,7 @@ let serverError;
 
 describe('sni', () => {
   let servers, helper, originalGatewayConfig;
-  before('setup', (done) => {
+  before('setup', () => {
     originalGatewayConfig = config.gatewayConfig;
 
     helper = testHelper();
@@ -109,7 +109,7 @@ describe('sni', () => {
       }
     };
 
-    helper.setup()
+    return helper.setup()
       .then(_servers => {
         servers = _servers;
 
@@ -120,8 +120,6 @@ describe('sni', () => {
         servers.httpsApp.on('secureConnection', (tlsSocket) => {
           serverResult = { sni: tlsSocket.servername, authorized: tlsSocket.authorized };
         });
-
-        done();
       });
   });
 
@@ -134,7 +132,7 @@ describe('sni', () => {
       options.port = servers.httpsApp.address().port;
       const client = tls.connect(options, function () {
         tc.actual.clientResult =
-          /Hostname\/IP doesn't/.test(client.authorizationError || '');
+          /Hostname\/IP doesn't/.test(client.authorizationError) || client.authorizationError === 'ERR_TLS_CERT_ALTNAME_INVALID';
         client.destroy();
         tc.actual.serverResult = serverResult;
         tc.actual.clientError = null;
@@ -144,23 +142,22 @@ describe('sni', () => {
 
       client.on('error', function (err) {
         tc.actual.clientResult = false;
-        tc.actual.clientError = err.message;
+        tc.actual.clientError = err.code;
         tc.actual.serverError = serverError;
         tc.actual.serverResult = serverResult;
         done();
       });
     });
   });
-  after('check', (done) => {
+  after('check', () => {
     testCases.forEach((tc) => {
       assert.deepStrictEqual(tc.actual.serverResult, tc.expected.serverResult);
       assert.equal(tc.actual.clientResult, tc.expected.clientResult);
       assert.equal(tc.actual.clientError, tc.expected.clientError);
       assert.equal(tc.actual.serverError, tc.expected.serverError);
     });
-    helper.cleanup();
     config.gatewayConfig = originalGatewayConfig;
-    done();
+    return helper.cleanup();
   });
 });
 

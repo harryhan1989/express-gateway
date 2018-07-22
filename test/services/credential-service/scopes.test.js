@@ -8,7 +8,7 @@ describe('Scope tests', function () {
 
   it('should insert a scope', function (done) {
     credentialService
-      .insertScopes('someScope')
+      .insertScopes(['someScope'])
       .then(function (res) {
         should.exist(res);
         res.should.eql(true);
@@ -49,7 +49,7 @@ describe('Scope tests', function () {
 
   it('should not insert a scope which is not a string', function (done) {
     credentialService
-      .insertScopes({})
+      .insertScopes([{}])
       .then(function (res) {
         should.not.exist(res);
         done();
@@ -62,7 +62,7 @@ describe('Scope tests', function () {
 
   it('should not insert a scope which is null', function (done) {
     credentialService
-      .insertScopes(null)
+      .insertScopes([null])
       .then(function (res) {
         should.not.exist(res);
         done();

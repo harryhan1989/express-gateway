@@ -1,5 +1,6 @@
-const chalk = require('chalk');
 const eg = require('../../eg');
+const SCHEMA = 'http://express-gateway.io/models/credentials.json';
+
 module.exports = class extends eg.Generator {
   constructor (args, opts) {
     super(args, opts);
@@ -14,9 +15,9 @@ module.exports = class extends eg.Generator {
           .usage(`Usage: $0 ${process.argv[2]} create [options]`)
           .example(`$0 ${process.argv[2]} create -c jdoe -t key-auth`)
           .example(`echo '{"consumer":"jdoe", "type": "key-auth"}'` +
-          `| $0 ${process.argv[2]} create --stdin`)
+            `| $0 ${process.argv[2]} create --stdin`)
           .example(`echo '{"consumer":"jdoe", "type": "key-auth", "scopes":["existingScope"]}'` +
-          `| $0 ${process.argv[2]} create --stdin`)
+            `| $0 ${process.argv[2]} create --stdin`)
           .example(`cat all_apps.json | $0 ${process.argv[2]} create --stdin`)
           .example(`$0 ${process.argv[2]} create -u jdoe -p 'scopes=existingScope'`)
           .string(['p', 'c', 't'])
@@ -88,10 +89,14 @@ module.exports = class extends eg.Generator {
       return;
     }
 
-    return this._insert(credential, { consumer: argv.consumer, type: argv.type })
-      .then(newCredential => {
-        this._output(newCredential);
+    return this._promptAndValidate(credential, SCHEMA)
+      .then((credential) => {
+        if (credential.scopes) {
+          credential.scopes = Array.isArray(credential.scopes) ? credential.scopes : [credential.scopes];
+        }
+        return this.admin.credentials.create(argv.consumer, argv.type, credential);
       })
+      .then((data) => this._output(data))
       .catch(err => {
         this.log.error((err.response && err.response.error && err.response.error.text) || err.message);
       });
@@ -139,7 +144,8 @@ module.exports = class extends eg.Generator {
               type
             };
 
-            return this._insert(credential, options)
+            return this._promptAndValidate(credential, SCHEMA, options)
+              .then((credential) => this.admin.credentials.create(options.consumer, options.type, credential))
               .then(newCredential => {
                 this._output(newCredential);
               })
@@ -167,52 +173,4 @@ module.exports = class extends eg.Generator {
       }
     }
   }
-
-  _insert (credential, options) {
-    const models = this.eg.config.models;
-
-    options = options || {};
-    options.skipPrompt = options.skipPrompt || false;
-
-    let questions = [];
-
-    if (!options.skipPrompt) {
-      let shouldPrompt = false;
-      const missingProperties = [];
-
-      const configProperties = models.credentials[this.argv.type].properties;
-      Object.keys(configProperties).forEach(prop => {
-        const descriptor = configProperties[prop];
-
-        if (!credential[prop]) {
-          if (!shouldPrompt && descriptor.isRequired) {
-            shouldPrompt = true;
-          }
-
-          missingProperties.push({ name: prop, descriptor: descriptor });
-        }
-      });
-
-      if (shouldPrompt) {
-        questions = missingProperties.map(p => {
-          const required = p.descriptor.isRequired
-            ? ' [required]'
-            : '';
-
-          return {
-            name: p.name,
-            message: `Enter ${chalk.yellow(p.name)}${chalk.green(required)}:`,
-            default: p.defaultValue,
-            validate: input => !p.descriptor.isRequired ||
-              (!!input && p.descriptor.isRequired)
-          };
-        });
-      }
-    }
-    return this.prompt(questions)
-      .then(answers => {
-        credential = Object.assign(credential, answers);
-        return this.admin.credentials.create(options.consumer, options.type, credential);
-      });
-  };
 };

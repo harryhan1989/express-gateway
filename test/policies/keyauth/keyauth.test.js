@@ -105,7 +105,7 @@ describe('Functional Tests keyAuth Policy', () => {
       })
       .then(u => {
         dbuser1 = u;
-        return credentialService.insertScopes('authorizedScope', 'unauthorizedScope');
+        return credentialService.insertScopes(['authorizedScope', 'unauthorizedScope']);
       })
       .then(() => {
         return credentialService.insertCredential(dbuser1.id, 'key-auth', {
@@ -125,11 +125,9 @@ describe('Functional Tests keyAuth Policy', () => {
       });
   });
 
-  after('cleanup', (done) => {
-    app.close();
+  after('cleanup', () => {
     config.gatewayConfig = originalGatewayConfig;
-    helper.cleanup();
-    done();
+    return helper.cleanup();
   });
 
   it('should not authenticate key for requests without authorization header', function (done) {

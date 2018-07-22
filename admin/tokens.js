@@ -1,9 +1,9 @@
 module.exports = function (client) {
-  const baseUrl = `tokens/`;
+  const baseUrl = '/tokens/';
   return {
     revoke (token) {
       return client
-        .del(baseUrl + token)
+        .del(`${baseUrl}${encodeURIComponent(token)}`)
         .then(res => res.body);
     }
   };

@@ -51,16 +51,13 @@ describe('default config with multi step (multi action) policy', () => {
         }
       }
     };
-    helper.setup({ config, plugins });
+    return helper.setup({ config, plugins });
   });
 
-  after('cleanup', (done) => {
-    helper.cleanup();
-    done();
-  });
+  after('cleanup', helper.cleanup);
 
   beforeEach('reset', () => {
-    spy.reset();
+    spy.resetHistory();
   });
 
   ['/random/17/3', '/', '/admin'].forEach(url => {

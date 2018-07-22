@@ -1,9 +1,9 @@
 module.exports = function (client) {
-  const baseUrl = `api-endpoints/`;
+  const baseUrl = '/api-endpoints/';
   return {
     create (name, endpointConfig) {
       return client
-        .put(baseUrl + name)
+        .put(`${baseUrl}${encodeURIComponent(name)}`)
         .send(endpointConfig)
         .then(res => res.body);
     },
@@ -12,12 +12,12 @@ module.exports = function (client) {
     },
     remove (name) {
       return client
-        .del(baseUrl + name)
+        .del(`${baseUrl}${encodeURIComponent(name)}`)
         .then(res => res.body);
     },
     info (name) {
       return client
-        .get(baseUrl + name)
+        .get(`${baseUrl}${encodeURIComponent(name)}`)
         .then(res => res.body);
     },
     list () {

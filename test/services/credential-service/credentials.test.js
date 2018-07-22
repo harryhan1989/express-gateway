@@ -1,6 +1,7 @@
 const should = require('should');
 const config = require('../../../lib/config');
 const services = require('../../../lib/services');
+const schemas = require('../../../lib/schemas');
 const credentialService = services.credential;
 const userService = services.user;
 const db = require('../../../lib/db');
@@ -153,49 +154,46 @@ describe('Credential service tests', () => {
   });
 
   describe('Credential Property tests', () => {
-    const originalModelConfig = config.models.credentials;
+    const originalModelConfig = JSON.parse(JSON.stringify(config.models.credentials));
     const username = 'someUser';
     const _credential = {
       secret: 'password',
-      scopes: 'someScope',
+      scopes: ['someScope'],
       someProperty: 'propVal'
     };
 
     before(() => {
-      config.models.credentials.oauth2 = {
-        passwordKey: 'secret',
-        autoGeneratePassword: true,
-        properties: {
-          scopes: { isRequired: false },
-          someProperty: { isRequired: true, isMutable: false },
-          otherProperty: { defaultValue: 'someDefaultValue' }
-        }
-      };
+      Object.assign(config.models.credentials.properties.oauth2.properties, {
+        someProperty: { type: 'string' },
+        otherProperty: { type: 'string', default: 'someDefaultValue' }
+      });
 
+      config.models.credentials.properties.oauth2.required.push('someProperty');
+      schemas.register('credentials', 'credential', config.models.credentials);
       return db.flushdb();
     });
 
     after(() => {
       config.models.credentials = originalModelConfig;
+      schemas.register('credentials', 'credential', config.models.credentials);
     });
 
     it('should not insert a credential with scopes if the scopes are not defined', () => {
       return should(credentialService.insertCredential(username, 'oauth2', _credential))
-        .be.rejectedWith('one or more scopes don\'t exist');
+        .be.rejectedWith('One or more scopes don\'t exist');
     });
 
     it('should insert a credential with scopes if the scopes are defined', () => {
-      return credentialService.insertScopes('someScope')
+      return credentialService.insertScopes(['someScope'])
         .then(() => credentialService.insertCredential(username, 'oauth2', _credential))
         .then((newCredential) => {
           should.exist(newCredential);
           should.exist(newCredential.scopes);
           should.not.exist(newCredential.secret);
 
-          newCredential.isActive.should.eql(true);
-          newCredential.scopes.should.eql(['someScope']);
-          newCredential.someProperty.should.eql('propVal');
-          newCredential.otherProperty.should.eql('someDefaultValue');
+          should(newCredential.isActive).eql(true);
+          should(newCredential.scopes).eql(['someScope']);
+          should(newCredential.someProperty).eql('propVal');
         });
     });
 
@@ -209,7 +207,7 @@ describe('Credential service tests', () => {
               should.exist(cred);
               should.exist(cred.scopes);
               cred.isActive.should.eql(true);
-              cred.scopes.should.containEql(_credential.scopes);
+              cred.scopes.should.containEql(..._credential.scopes);
               cred.scopes.should.containEql('someScope1');
               cred.scopes.should.containEql('someScope2');
               cred.scopes.should.containEql('someScope3');
@@ -225,7 +223,7 @@ describe('Credential service tests', () => {
         .then((cred) => {
           should.exist(cred);
           should.exist(cred.scopes);
-          cred.scopes.should.containEql(_credential.scopes);
+          cred.scopes.should.containEql(..._credential.scopes);
           cred.scopes.should.containEql('someScope1');
           cred.scopes.should.not.containEql('someScope2');
           cred.scopes.should.not.containEql('someScope3');
@@ -247,15 +245,15 @@ describe('Credential service tests', () => {
     });
 
     it('should not add scopes to existing credential if the scopes are not defined', () => {
-      return should(credentialService.addScopesToCredential(username, 'oauth2', 'undefinedScope'))
-        .be.rejectedWith('one or more scopes don\'t exist');
+      return should(credentialService.addScopesToCredential(username, 'oauth2', ['undefinedScope']))
+        .be.rejectedWith('One or more scopes don\'t exist');
     });
 
     it('should use default property if not defined', () => {
       const username2 = 'otherUser';
       const cred = {
         secret: 'password',
-        scopes: 'someOtherOne',
+        scopes: ['someOtherOne'],
         someProperty: 'propVal'
       };
 
@@ -276,21 +274,14 @@ describe('Credential service tests', () => {
       const username3 = 'anotherUser';
       const cred = {
         secret: 'password',
-        scopes: 'someScope'
+        scopes: ['someScope']
       };
 
       return should(credentialService
         .insertCredential(username3, 'oauth2', cred))
-        .be.rejectedWith('someProperty is required')
+        .be.rejectedWith('data should have required property \'someProperty\'')
         .then(() => credentialService.getCredential(username3, 'oauth2'))
         .then(credential => should.not.exist(credential));
-    });
-
-    it('should not update credential with an update to an immutable property', () => {
-      return should(credentialService.updateCredential(username, 'oauth2', { someProperty: 'something' }))
-        .be.rejectedWith('someProperty is immutable')
-        .then(() => credentialService.getCredential(username, 'oauth2'))
-        .then(credential => should.exist(credential));
     });
 
     it('should not update credential when no properties are specified', () => {

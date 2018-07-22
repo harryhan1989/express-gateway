@@ -1,6 +1,6 @@
 const logPolicy = require('../../../lib/policies/log').policy;
 const EgContextBase = require('../../../lib/gateway/context');
-const logger = require('../../../lib/policies/log/winston-logger');
+const logger = require('../../../lib/policies/log/instance');
 const sinon = require('sinon');
 const assert = require('assert');
 
@@ -66,8 +66,8 @@ describe('@log policy', () => {
   });
 
   afterEach(function () {
-    logger.info.reset();
-    logger.error.reset();
+    logger.info.resetHistory();
+    logger.error.resetHistory();
   });
 
   after(function () {

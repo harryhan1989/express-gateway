@@ -3,43 +3,44 @@ const fs = require('fs');
 const { fork } = require('child_process');
 const path = require('path');
 const request = require('superagent');
-const { generateBackendServer, findOpenPortNumbers } =
-  require('../common/server-helper');
+const util = require('util');
+const _cpr = util.promisify(require('cpr'));
+const { generateBackendServer, findOpenPortNumbers } = require('../common/server-helper');
 let gatewayPort = null;
 let adminPort = null;
-let backendPort = null;
+let backendPorts = null;
 
 // Set gateway.config or system.config yml files
-module.exports.setYmlConfig = function ({ymlConfigPath, newConfig}) {
+module.exports.setYmlConfig = function ({ ymlConfigPath, newConfig }) {
   fs.writeFileSync(ymlConfigPath, yaml.dump(newConfig));
 };
 
 // Get config by path (gateway.config.yml or system.config.yml)
-module.exports.getYmlConfig = function ({ymlConfigPath}) {
+module.exports.getYmlConfig = function ({ ymlConfigPath }) {
   const content = fs.readFileSync();
   return yaml.load(content);
 };
 
-module.exports.startGatewayInstance = function ({dirInfo, gatewayConfig}) {
-  return findOpenPortNumbers(4)
+module.exports.startGatewayInstance = function ({ dirInfo, gatewayConfig, backendServers = 1 }) {
+  return findOpenPortNumbers(2 + backendServers)
     .then(ports => {
-      gatewayPort = ports[0];
-      backendPort = ports[1];
-      adminPort = ports[2];
+      gatewayPort = ports.shift();
+      adminPort = ports.shift();
+      backendPorts = ports;
 
-      gatewayConfig.http = {port: gatewayPort};
-      gatewayConfig.admin = {port: adminPort};
+      gatewayConfig.http = { port: gatewayPort };
+      gatewayConfig.admin = { port: adminPort };
       gatewayConfig.serviceEndpoints = gatewayConfig.serviceEndpoints || {};
-      gatewayConfig.serviceEndpoints.backend = {url: `http://localhost:${backendPort}`};
+      gatewayConfig.serviceEndpoints.backend = { urls: backendPorts.map(backendPort => `http://localhost:${backendPort}`) };
+
       return this.setYmlConfig({
         ymlConfigPath: dirInfo.gatewayConfigPath,
         newConfig: gatewayConfig
       });
     })
-    .then(() => {
-      return generateBackendServer(backendPort);
-    })
-    .then(() => {
+    .then(() => _cpr(path.join(__dirname, '../../lib/config/models'), path.join(dirInfo.configDirectoryPath, 'models'), { overwrite: true }))
+    .then(() => Promise.all(backendPorts.map(backendPort => generateBackendServer(backendPort))))
+    .then((backendServers) => {
       return new Promise((resolve, reject) => {
         const childEnv = Object.assign({}, process.env);
         childEnv.EG_CONFIG_DIR = dirInfo.configDirectoryPath;
@@ -51,30 +52,30 @@ module.exports.startGatewayInstance = function ({dirInfo, gatewayConfig}) {
           'lib', 'index.js');
         const gatewayProcess = fork(modulePath, [], {
           cwd: dirInfo.basePath,
-          env: childEnv
+          env: childEnv,
+          stdio: ['pipe', 'pipe', 'pipe', 'ipc']
         });
 
-        gatewayProcess.on('error', err => {
-          reject(err);
-        });
-        let count = 0;
-        const interval = setInterval(() => {
-          count++; // Waiting for process to start, ignoring conn refused errors
+        gatewayProcess.on('error', reject);
+        gatewayProcess.stdout.on('data', () => {
           request
             .get(`http://localhost:${gatewayPort}/not-found`)
+            .ok(res => true)
             .end((err, res) => {
-              if (err && res && res.statusCode === 404) {
-                clearInterval(interval);
-                resolve({gatewayProcess, gatewayPort, adminPort, backendPort, dirInfo});
-              } else {
-                if (count >= 25) {
-                  gatewayProcess.kill();
-                  clearInterval(interval);
-                  reject(new Error('Failed to start Express Gateway'));
-                }
+              if (err) {
+                gatewayProcess.kill();
+                reject(err);
               }
+              resolve({
+                gatewayProcess,
+                gatewayPort,
+                adminPort,
+                backendPorts,
+                dirInfo,
+                backendServers: backendServers.map(bs => bs.app)
+              });
             });
-        }, 300);
+        });
       });
     });
 };

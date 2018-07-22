@@ -1,5 +1,5 @@
 module.exports = function (client) {
-  const baseUrl = 'apps/';
+  const baseUrl = '/apps/';
   return {
     create (userId, app) {
       app.userId = userId;
@@ -10,38 +10,40 @@ module.exports = function (client) {
     },
     update (appId, app) {
       return client
-        .put(baseUrl + appId)
+        .put(`${baseUrl}${encodeURIComponent(appId)}`)
         .send(app)
         .then(res => res.body);
     },
     activate (id) {
       return client
-        .put(baseUrl + id + '/status')
-        .send({status: true})
+        .put(`${baseUrl}${encodeURIComponent(id)}/status`)
+        .send({ status: true })
         .then(res => res.body);
     },
 
     deactivate (id) {
       return client
-        .put(baseUrl + id + '/status')
-        .send({status: false})
+        .put(`${baseUrl}${encodeURIComponent(id)}/status`)
+        .send({ status: false })
         .then(res => res.body);
     },
 
     info (id) {
       return client
-        .get(baseUrl + id)
+        .get(`${baseUrl}${encodeURIComponent(id)}`)
         .then(res => res.body);
     },
-    list () { // TODO: add pagination
+
+    list (params) {
       return client
         .get(baseUrl)
+        .query(params)
         .then(res => res.body);
     },
 
     remove (id) {
       return client
-        .del(baseUrl + id)
+        .del(`${baseUrl}${encodeURIComponent(id)}`)
         .then(res => res.body);
     }
 

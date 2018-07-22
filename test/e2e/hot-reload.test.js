@@ -2,7 +2,7 @@ const { fork } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const assert = require('chai').assert;
+const should = require('should');
 const chokidar = require('chokidar');
 const cpr = require('cpr');
 const request = require('superagent');
@@ -15,17 +15,7 @@ const { findOpenPortNumbers } = require('../common/server-helper');
 const GATEWAY_STARTUP_WAIT_TIME = 5000;
 const TEST_TIMEOUT = 10000;
 
-/*
-    1) Copy config to a temp directory.
-    2) Execute a child process with `process.env.EG_CONFIG_DIR` set to the temp directory.
-    3) Watch the temp directory config file from the test.
-    4) Do a baseline request to make sure the original gateway config is working.
-    5) Write a new gateway config
-    6) When the test watcher fires, make another HTTP request to confirm the new config is working.
-    7) Clean up the temp directory.
-*/
-
-const baseConfigDirectory = path.join(__dirname, '..', 'fixtures', 'hot-reload');
+const baseConfigDirectory = path.join(__dirname, '../../lib/config');
 
 describe('hot-reload', () => {
   describe('gateway config', () => {
@@ -42,7 +32,7 @@ describe('hot-reload', () => {
           return done(err);
         }
 
-        cpr(baseConfigDirectory, tempPath, (err, files) => {
+        cpr(baseConfigDirectory, tempPath, { filter: file => file.includes('.yml') }, (err, files) => {
           if (err) {
             return done(err);
           }
@@ -54,7 +44,7 @@ describe('hot-reload', () => {
 
             testGatewayConfigPath = path.join(tempPath, 'gateway.config.yml');
 
-            findOpenPortNumbers(3).then(ports => {
+            findOpenPortNumbers(2).then(([httpPort, adminPort]) => {
               fs.readFile(testGatewayConfigPath, (err, configData) => {
                 if (err) {
                   return done(err);
@@ -62,13 +52,11 @@ describe('hot-reload', () => {
 
                 testGatewayConfigData = yaml.load(configData);
 
-                testGatewayConfigData.http.port = ports[0];
-                testGatewayConfigData.https.port = ports[1];
-                testGatewayConfigData.admin.port = ports[2];
-                testGatewayConfigData.serviceEndpoints.backend.url =
-                  `http://localhost:${ports[2]}`;
+                testGatewayConfigData.http.port = httpPort;
+                testGatewayConfigData.admin.port = adminPort;
+                testGatewayConfigData.serviceEndpoints.backend.url = `http://localhost:${adminPort}`;
 
-                originalGatewayPort = ports[0];
+                originalGatewayPort = httpPort;
 
                 fs.writeFile(testGatewayConfigPath, yaml.dump(testGatewayConfigData), (err) => {
                   if (err) {
@@ -95,8 +83,8 @@ describe('hot-reload', () => {
                     request
                       .get(`http://localhost:${originalGatewayPort}`)
                       .end((err, res) => {
-                        assert(err);
-                        assert(res.unauthorized);
+                        should(err).not.be.undefined();
+                        should(res.unauthorized).not.be.undefined();
                         done();
                       });
                   }, GATEWAY_STARTUP_WAIT_TIME);
@@ -114,7 +102,7 @@ describe('hot-reload', () => {
     });
 
     beforeEach(function (done) {
-      watcher = chokidar.watch(testGatewayConfigPath, { awaitWriteFinish: true });
+      watcher = chokidar.watch(testGatewayConfigPath, { awaitWriteFinish: true, ignoreInitial: true });
       watcher.on('ready', done);
     });
 
@@ -130,9 +118,9 @@ describe('hot-reload', () => {
             request
               .get(`http://localhost:${originalGatewayPort}`)
               .end((err, res) => {
-                assert(err);
-                assert(res.clientError);
-                assert.equal(res.statusCode, 404);
+                should(err).not.be.undefined();
+                should(res.clientError).not.be.undefined();
+                should(res.statusCode).be.eql(404);
                 done();
               });
           }, GATEWAY_STARTUP_WAIT_TIME);
@@ -150,14 +138,14 @@ describe('hot-reload', () => {
           request
             .get(`http://localhost:${originalGatewayPort}`)
             .end((err, res) => {
-              assert(err);
-              assert(res.clientError);
-              assert.equal(res.statusCode, 404);
+              should(err).not.be.undefined();
+              should(res.clientError).not.be.undefined();
+              should(res.statusCode).be.eql(404);
               done();
             });
         });
         // make config invalid
-        fs.writeFileSync(testGatewayConfigPath, yaml.dump('{er:t4'));
+        fs.writeFileSync(testGatewayConfigPath, '{er:t4');
       });
     });
   });

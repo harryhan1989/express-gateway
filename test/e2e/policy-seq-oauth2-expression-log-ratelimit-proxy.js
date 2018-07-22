@@ -6,7 +6,7 @@ const express = require('express');
 const sinon = require('sinon');
 const assert = require('assert');
 
-const logger = require('../../lib/policies/log/winston-logger');
+const logger = require('../../lib/policies/log/instance');
 const services = require('../../lib/services');
 const credentialService = services.credential;
 const userService = services.user;
@@ -155,9 +155,7 @@ describe('E2E: oauth2, proxy, log, expression, rate-limit policies', () => {
 
                 request
                   .post('/oauth2/authorize/decision')
-                  .query({
-                    transaction_id: res.headers.transaction_id
-                  })
+                  .query({ transaction_id: res.headers.transaction_id })
                   .expect(302)
                   .end(function (err, res) {
                     should.not.exist(err);
@@ -178,18 +176,14 @@ describe('E2E: oauth2, proxy, log, expression, rate-limit policies', () => {
               });
           });
       })
-      .catch(function (err) {
-        should.not.exist(err);
-        done();
-      });
+      .catch(done);
   });
 
-  after('cleanup', (done) => {
-    helper.cleanup();
+  after('cleanup', () => {
     config.gatewayConfig = originalGatewayConfig;
     logger.info.restore();
     backendServer.close();
-    done();
+    return helper.cleanup();
   });
 
   it('should execute oauth2, proxy, log, expression, rate-limit policies and return 200', function (done) {

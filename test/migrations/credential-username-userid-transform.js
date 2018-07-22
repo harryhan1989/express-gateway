@@ -2,7 +2,8 @@ const migrate = require('migrate');
 const tmp = require('tmp');
 const idGen = require('uuid62');
 const db = require('../../lib/db');
-const { assert } = require('chai');
+const fs = require('fs');
+const should = require('should');
 const userService = require('../../lib/services/consumers/user.service');
 const credentialService = require('../../lib/services/credentials/credential.service');
 
@@ -28,6 +29,15 @@ describe('Migrations', () => {
 
     before('I then run the migration script', (done) => {
       tmpFile = tmp.fileSync();
+      fs.writeFileSync(tmpFile.name, JSON.stringify({
+        lastRun: '1509389756097-model-to-jsonschema.js',
+        migrations: [
+          {
+            title: '1509389756097-model-to-jsonschema.js',
+            timestamp: 1515423465439
+          }
+        ]
+      }, null, 2));
       migrate.load({ stateStore: tmpFile.name }, (err, set) => {
         if (err) {
           return done(err);
@@ -38,14 +48,14 @@ describe('Migrations', () => {
 
     it('should not find any active credential with user name any more', () => {
       return credentialService.getCredentials(username).then((credentials) => {
-        assert.lengthOf(credentials.filter(c => c.isActive), 0);
+        should(credentials.filter(c => c.isActive)).have.lengthOf(0);
       });
     });
 
     it('should find an active credential with user ID and SAME hashed password', () => {
       return credentialService.getCredentials(userId).then((credentials) => {
-        assert.lengthOf(credentials.filter(c => c.isActive), 1);
-        assert.equal(credentials[0].password, oldCredential.password);
+        should(credentials.filter(c => c.isActive)).have.lengthOf(1);
+        should(credentials[0].password).eql(oldCredential.password);
       });
     });
 
